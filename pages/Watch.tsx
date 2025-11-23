@@ -1,48 +1,38 @@
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { Video } from '../types';
+import { Video, Comment } from '../types';
 import { LikeIcon, ShareIcon, MoreIcon, SparklesIcon } from '../components/Icons';
-import VideoCard from '../components/VideoCard';
 import { generateVideoSummary } from '../services/geminiService';
-
-// Reusing generator for mock recommendations
-const generateRecommendations = (count: number): Video[] => {
-  return Array.from({ length: count }).map((_, i) => ({
-    id: `r${i}`,
-    title: `Recommended Video Title #${i + 1}`,
-    thumbnail: `https://picsum.photos/seed/${i + 500}/320/180`,
-    author: `Creator_${i}`,
-    views: `${Math.floor(Math.random() * 500)}k`,
-    date: `2 days ago`,
-    duration: "12:34",
-    category: 'Recommended',
-    avatar: `https://picsum.photos/seed/u${i}/50`
-  }));
-};
+import { videoService } from '../services/videoService';
 
 const Watch: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const [video, setVideo] = useState<Video | null>(null);
   const [recommendations, setRecommendations] = useState<Video[]>([]);
+  const [comments, setComments] = useState<Comment[]>([]);
   const [summary, setSummary] = useState<string>("");
   const [isLoadingSummary, setIsLoadingSummary] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Mock fetch current video details
-    const mockVideo: Video = {
-      id: id || 'v1',
-      title: "Building a Modern Frontend with React & Tailwind CSS",
-      thumbnail: `https://picsum.photos/seed/${id}/1280/720`,
-      author: "TechGuru_Official",
-      views: "234.5k",
-      date: "3 days ago",
-      duration: "15:42",
-      category: "Tech",
-      avatar: "https://picsum.photos/seed/techguru/100"
+    const fetchData = async () => {
+      setLoading(true);
+      const videoId = id || 'v1';
+      
+      const [vid, recs, coms] = await Promise.all([
+        videoService.getVideoById(videoId),
+        videoService.getRelatedVideos(videoId),
+        videoService.getComments(videoId)
+      ]);
+
+      setVideo(vid);
+      setRecommendations(recs);
+      setComments(coms);
+      setSummary(""); // Reset summary
+      setLoading(false);
     };
-    setVideo(mockVideo);
-    setRecommendations(generateRecommendations(10));
-    setSummary(""); // Reset summary on new video
+
+    fetchData();
   }, [id]);
 
   const handleGenerateSummary = async () => {
@@ -53,7 +43,22 @@ const Watch: React.FC = () => {
     setIsLoadingSummary(false);
   };
 
-  if (!video) return <div className="p-10 text-center">Loading...</div>;
+  if (loading || !video) {
+    return (
+      <div className="max-w-[1600px] mx-auto p-10 flex gap-8">
+        <div className="flex-1 space-y-4 animate-pulse">
+           <div className="w-full aspect-video bg-gray-200 rounded-xl"></div>
+           <div className="h-8 bg-gray-200 w-2/3 rounded"></div>
+           <div className="h-4 bg-gray-200 w-1/3 rounded"></div>
+        </div>
+        <div className="w-[350px] space-y-4 hidden lg:block animate-pulse">
+           <div className="h-24 bg-gray-200 rounded"></div>
+           <div className="h-24 bg-gray-200 rounded"></div>
+           <div className="h-24 bg-gray-200 rounded"></div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-[1600px] mx-auto px-4 py-6 flex flex-col lg:flex-row gap-8">
@@ -63,7 +68,6 @@ const Watch: React.FC = () => {
         
         {/* Player Container */}
         <div className="w-full aspect-video bg-black rounded-xl overflow-hidden shadow-lg relative group">
-            {/* Mock Video Element */}
             <img src={video.thumbnail} className="w-full h-full opacity-50 object-cover" alt="Video Placeholder" />
             <div className="absolute inset-0 flex items-center justify-center">
                 <button className="bg-[#FB7299] text-white p-4 rounded-full shadow-lg transform transition-transform group-hover:scale-110">
@@ -71,7 +75,6 @@ const Watch: React.FC = () => {
                 </button>
             </div>
             
-            {/* Mock Controls */}
             <div className="absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-black/80 to-transparent px-4 flex items-center gap-4 text-white opacity-0 group-hover:opacity-100 transition-opacity">
                <div className="w-full bg-gray-600 h-1 rounded-full overflow-hidden">
                  <div className="w-1/3 h-full bg-[#FB7299]"></div>
@@ -148,9 +151,9 @@ const Watch: React.FC = () => {
            </div>
         </div>
 
-        {/* Comments Section (Static Mock) */}
+        {/* Comments Section */}
         <div className="mt-8">
-           <h3 className="text-lg font-bold mb-4">Comments <span className="text-gray-400 text-sm font-normal">(1,234)</span></h3>
+           <h3 className="text-lg font-bold mb-4">Comments <span className="text-gray-400 text-sm font-normal">({comments.length})</span></h3>
            {/* Comment Input */}
            <div className="flex gap-4 mb-6">
              <img src="https://picsum.photos/seed/me/50" className="w-10 h-10 rounded-full" alt="Me" />
@@ -163,18 +166,18 @@ const Watch: React.FC = () => {
            </div>
 
            {/* Comment List */}
-           {[1, 2, 3].map(i => (
-             <div key={i} className="flex gap-4 mb-6">
-               <img src={`https://picsum.photos/seed/comment${i}/50`} className="w-10 h-10 rounded-full" alt="User" />
+           {comments.map((comment) => (
+             <div key={comment.id} className="flex gap-4 mb-6">
+               <img src={comment.avatar} className="w-10 h-10 rounded-full" alt="User" />
                <div className="flex-1 pb-4 border-b border-gray-100">
                  <div className="flex items-center gap-2 mb-1">
-                   <span className="font-medium text-sm text-gray-600">User_{i * 99}</span>
+                   <span className="font-medium text-sm text-gray-600">{comment.user}</span>
                    <span className="text-xs text-gray-400">Lv.5</span>
                  </div>
-                 <p className="text-sm text-gray-800">Great video! Really helped me understand the concepts better.</p>
+                 <p className="text-sm text-gray-800">{comment.content}</p>
                  <div className="mt-2 flex gap-4 text-xs text-gray-400">
-                    <span>2024-05-{10+i}</span>
-                    <span className="cursor-pointer hover:text-[#FB7299]">Like</span>
+                    <span>{comment.date}</span>
+                    <span className="cursor-pointer hover:text-[#FB7299]">Like ({comment.likes})</span>
                     <span className="cursor-pointer hover:text-[#FB7299]">Reply</span>
                  </div>
                </div>

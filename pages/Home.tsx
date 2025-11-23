@@ -1,44 +1,28 @@
 import React, { useState, useEffect } from 'react';
 import { Video, Category } from '../types';
 import VideoCard from '../components/VideoCard';
-import { GameIcon, TechIcon, MusicIcon, TvIcon, HomeIcon } from '../components/Icons';
-
-// Mock Data Generator
-const generateVideos = (count: number): Video[] => {
-  return Array.from({ length: count }).map((_, i) => ({
-    id: `v${i + 100}`,
-    title: [
-      "Building a React App in 10 Minutes with AI",
-      "Top 10 Anime Battles of 2024",
-      "Why Rust is the Future of Web Development",
-      "Genshin Impact: New Region Walkthrough",
-      "Mechanical Keyboard ASMR - 4K 60FPS",
-      "Understanding Quantum Computing Basics",
-      "Cyberpunk 2077: Phantom Liberty Review",
-      "How to Make Perfect Ramen at Home",
-      "The History of Street Fighter",
-      "Cat Funny Moments Compilation #52",
-      "Exploring Tokyo: Akihabara Guide",
-      "RTX 5090 Leaks & Rumors Analysis"
-    ][i % 12] + (i > 11 ? ` - Part ${i}` : ""),
-    thumbnail: `https://picsum.photos/seed/${i + 200}/640/360`,
-    author: `User_${Math.floor(Math.random() * 1000)}`,
-    views: `${Math.floor(Math.random() * 900) + 10}k`,
-    date: `${Math.floor(Math.random() * 11) + 1} months ago`,
-    duration: `${Math.floor(Math.random() * 20)}:${Math.floor(Math.random() * 60).toString().padStart(2, '0')}`,
-    category: Object.values(Category)[Math.floor(Math.random() * 5)],
-    avatar: `https://picsum.photos/seed/user_${i}/100`
-  }));
-};
+import { GameIcon, TechIcon, MusicIcon, TvIcon, HomeIcon, SparklesIcon } from '../components/Icons';
+import { videoService } from '../services/videoService';
 
 const Home: React.FC = () => {
   const [activeCategory, setActiveCategory] = useState<Category>(Category.RECOMMENDED);
   const [videos, setVideos] = useState<Video[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Simulate fetch
-    setVideos(generateVideos(20));
-  }, []);
+    const loadVideos = async () => {
+      setLoading(true);
+      try {
+        const data = await videoService.getVideos(activeCategory);
+        setVideos(data);
+      } catch (error) {
+        console.error("Failed to fetch videos", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadVideos();
+  }, [activeCategory]);
 
   const categories = [
     { name: Category.RECOMMENDED, icon: <HomeIcon className="w-4 h-4" /> },
@@ -72,8 +56,8 @@ const Home: React.FC = () => {
       {/* Main Content */}
       <main className="max-w-[1800px] mx-auto px-4 py-6">
         
-        {/* Featured / Carousel Simulation */}
-        {activeCategory === Category.RECOMMENDED && (
+        {/* Featured / Carousel Simulation - Only on Recommended */}
+        {activeCategory === Category.RECOMMENDED && !loading && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
             <div className="col-span-1 md:col-span-2 row-span-2 relative rounded-xl overflow-hidden group cursor-pointer aspect-video md:aspect-auto">
               <img src="https://picsum.photos/seed/banner1/1280/720" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" alt="Banner" />
@@ -100,15 +84,26 @@ const Home: React.FC = () => {
           {activeCategory} Videos
         </h2>
         
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-y-8 gap-x-4">
-          {videos.map((video) => (
-            <VideoCard key={video.id} video={video} />
-          ))}
-        </div>
+        {loading ? (
+           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-8">
+             {Array.from({length: 10}).map((_, i) => (
+               <div key={i} className="animate-pulse">
+                 <div className="bg-gray-200 aspect-video rounded-lg mb-2"></div>
+                 <div className="h-4 bg-gray-200 rounded w-3/4 mb-1"></div>
+                 <div className="h-3 bg-gray-200 rounded w-1/2"></div>
+               </div>
+             ))}
+           </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-y-8 gap-x-4">
+            {videos.map((video) => (
+              <VideoCard key={video.id} video={video} />
+            ))}
+          </div>
+        )}
       </main>
     </div>
   );
 };
 
 export default Home;
-import { SparklesIcon } from '../components/Icons';
